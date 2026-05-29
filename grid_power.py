@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-FEMS GridMode Monitoring mit Pushover-Alarmierung und forensischem Audit-Log.
+FEMS GridMode Monitoring mit Pushover-Alarmierung (Emergency Priority) und forensischem Audit-Log.
 Konfiguration wird aus .fems_config.ini geladen.
 """
 
@@ -56,6 +56,13 @@ PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
 PUSHOVER_APP_TOKEN = config['pushover']['app_token']
 PUSHOVER_USER_KEY = config['pushover']['user_key']
 
+# Prioritäts-Konfiguration
+PUSHOVER_PRIORITY_OUTAGE = int(config.get('pushover', 'priority_outage', fallback='2'))
+PUSHOVER_PRIORITY_RECOVERY = int(config.get('pushover', 'priority_recovery', fallback='0'))
+PUSHOVER_PRIORITY_RETRY = int(config.get('pushover', 'priority_retry', fallback='30'))
+PUSHOVER_PRIORITY_EXPIRE = int(config.get('pushover', 'priority_expire', fallback='3600'))
+PUSHOVER_PRIORITY_SOUND = config.get('pushover', 'priority_sound', fallback='siren')
+
 FEMS_IP = config['fems']['ip']
 FEMS_PORT = int(config['fems']['port'])
 USERNAME = config['fems']['username']
@@ -70,7 +77,7 @@ AUDIT_LOG_FILE = config.get('paths', 'audit_log', fallback="/var/log/fems/outage
 def parse_args():
     parser = argparse.ArgumentParser(
         description="""
-FEMS GridMode Monitoring mit Pushover-Alarmierung.
+FEMS GridMode Monitoring mit Pushover-Alarmierung (Emergency Priority).
 
 Features:
   - Sofort-Alarm bei Statuswechsel (ON <-> OFF)
@@ -256,6 +263,9 @@ def send_pushover_notification(title, message, priority=0, sound=None, dry_run=F
         print(f"       Priorität: {priority}")
         if sound:
             print(f"       Sound:    {sound}")
+        if priority == 2:
+            print(f"       Retry:    {PUSHOVER_PRIORITY_RETRY}s")
+            print(f"       Expire:   {PUSHOVER_PRIORITY_EXPIRE}s")
         return True
 
     params = {
@@ -265,8 +275,15 @@ def send_pushover_notification(title, message, priority=0, sound=None, dry_run=F
         'message': message,
         'priority': str(priority),
     }
+    
+    # Sound nur hinzufügen wenn definiert
     if sound:
         params['sound'] = sound
+    
+    # Emergency-Priority (2) benötigt Retry und Expire
+    if priority == 2:
+        params['retry'] = str(PUSHOVER_PRIORITY_RETRY)
+        params['expire'] = str(PUSHOVER_PRIORITY_EXPIRE)
 
     try:
         response = requests.post(PUSHOVER_API_URL, data=params, timeout=5)
@@ -330,19 +347,23 @@ def check_and_notify(dry_run=False, interval_minutes=30):
                    f"Ausfalldauer: {duration_str}\n"
                    f"Zeitstempel: {timestamp}\n"
                    f"Grund: {reason}")
-            priority = 1
-            sound = 'siren'
+            
+            # Priorität und Sound aus Config
+            priority = PUSHOVER_PRIORITY_OUTAGE
+            sound = PUSHOVER_PRIORITY_SOUND
             
             # Audit-Log
             if reason == "Statuswechsel":
                 write_audit_log("OUTAGE_START", {
                     "grid_mode": grid_mode_raw,
-                    "first_outage_time": first_outage_str
+                    "first_outage_time": first_outage_str,
+                    "priority": priority
                 })
             else:
                 write_audit_log("OUTAGE_UPDATE", {
                     "grid_mode": grid_mode_raw,
-                    "duration_minutes": duration_min
+                    "duration_minutes": duration_min,
+                    "priority": priority
                 })
 
         else:  # ON_GRID
@@ -357,15 +378,18 @@ def check_and_notify(dry_run=False, interval_minutes=30):
                    f"Gesamtausfalldauer: {duration_str} ({duration_min} Min)\n"
                    f"Wiederherstellung: {timestamp}\n"
                    f"Grund: {reason}")
-            priority = 0
-            sound = None
+            
+            # Priorität und Sound aus Config (Normal für Recovery)
+            priority = PUSHOVER_PRIORITY_RECOVERY
+            sound = None  # Kein Sound bei Recovery
             
             # Audit-Log
             write_audit_log("OUTAGE_END", {
                 "grid_mode": grid_mode_raw,
                 "total_duration": duration_str,
                 "total_duration_minutes": duration_min,
-                "first_outage_time": first_outage_str
+                "first_outage_time": first_outage_str,
+                "priority": priority
             })
 
         send_pushover_notification(title, msg, priority, sound, dry_run)
@@ -389,3 +413,4 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=Warning, module="urllib3")
 
     check_and_notify(dry_run=args.test, interval_minutes=interval)
+
