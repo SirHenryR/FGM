@@ -78,7 +78,7 @@ app_token = dein_pushover_app_token
 user_key = dein_pushover_user_key
 
 [fems]
-ip = 192.168.0.9
+ip = IP_ADRESSE FEMS
 port = 80
 username = dein_fems_user
 password = dein_fems_pass
