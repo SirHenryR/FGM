@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-FEMS GridMode Monitoring mit Pushover-Alarmierung (Emergency Priority) und forensischem Audit-Log.
+FEMS GridMode Monitoring mit Pushover-Alarmierung (Emergency Priority) und Audit-Log.
 Konfiguration wird aus .fems_config.ini geladen.
 """
 
