@@ -374,7 +374,7 @@ def check_and_notify(dry_run=False, interval_minutes=30):
             
             title = "✅ NETZ WIEDERHERGESTELLT"
             msg = (f"Das FEMS-System ist zurück im On-Grid-Modus.\n"
-                   f"Ausfall begann: {first_outage_str or 'Unbekannt'}\n"
+                   f"Erstfeststellung: {first_outage_str or 'Unbekannt'}\n"
                    f"Gesamtausfalldauer: {duration_str} ({duration_min} Min)\n"
                    f"Wiederherstellung: {timestamp}\n"
                    f"Grund: {reason}")
